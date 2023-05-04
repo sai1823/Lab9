@@ -1,0 +1,71 @@
+library(shiny)
+library(shinydashboard)
+library(dplyr)
+library(ggplot2)
+
+# Define UI
+ui <- dashboardPage(
+  dashboardHeader(title = "Netflix Movies Dashboard"),
+  
+  dashboardSidebar(
+    numericInput("last_n_years", "Last N years:", value = 10, min = 1, max = 50),
+    selectInput("plot_type", "Plot Type:", choices = c("Bar Chart", "Movie Names"), selected = "Bar Chart"),
+    conditionalPanel(condition = "input.plot_type == 'Movie Names'",
+                     sliderInput("year_slider", "Year:", min = 2008, max = 2022, step = 1, value = 2021)
+    )
+  ),
+  
+  dashboardBody(
+    fluidRow(
+      box(title = "Number of Movies Released per Year", plotOutput("movies_per_year", height = 325)),
+      box(title = "Top Movies Released in a Year", plotOutput("top_movies_per_year", height = 325)),
+      box(title = "Movie Names by Year", tableOutput("movie_names"), height = 325)
+    )
+  )
+)
+
+# Define server
+server <- function(input, output) {
+  
+  # Load data
+  netflix_data <- read.csv("https://docs.google.com/spreadsheets/d/1Bcniyi1BIYOI8XNO4JBScUVkBv-FAkQBvNM5iDvvrz0/export?format=csv")
+  
+  # Movies per year
+  output$movies_per_year <- renderPlot({
+    netflix_data %>%
+      filter(Year >= (max(netflix_data$Year) - input$last_n_years + 1)) %>%
+      group_by(Year) %>%
+      summarise(Count = n()) %>%
+      ggplot(aes(x = Year, y = Count)) +
+      geom_bar(stat = "identity", fill = "lightblue", color = "black") +
+      labs(x = "Year", y = "Number of Movies Released")
+  })
+  
+  # Top movies per year
+  output$top_movies_per_year <- renderPlot({
+    netflix_data %>%
+      group_by(Year) %>%
+      summarise(Count = n()) %>%
+      arrange(desc(Count)) %>%
+      head(10) %>%
+      ggplot(aes(x = Year, y = Count, fill = Year)) +
+      geom_bar(stat = "identity") +
+      scale_fill_gradient(low = "white", high = "steelblue") +
+      labs(x = "Year", y = "Number of Movies Released", fill = "Year")
+  })
+  
+  # Movie names
+  output$movie_names <- renderTable({
+    if (input$plot_type == "Movie Names") {
+      netflix_data %>%
+        filter(Year == input$year_slider) %>%
+        select(Title)
+    } else {
+      NULL
+    }
+  })
+  
+}
+
+# Run the application
+shinyApp(ui = ui, server = server)
